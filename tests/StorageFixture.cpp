@@ -225,7 +225,7 @@ public:
             );
             check(
                 profiles::sha256(read(storage, state["source_key"])) == state["source_hash"].get<std::string>(),
-                "original NetEase record modified"
+                "repaired NetEase progress lost"
             );
             check(
                 profiles::sha256(read(storage, a["default_key"])) == state["default_hash"].get<std::string>(),
@@ -236,7 +236,7 @@ public:
                 "playable profile progress lost"
             );
             auto verified = profiles::findSources(storage, 4000000001u);
-            check(verified.size() == 1, "source record disappeared after copy");
+            check(verified.size() == 1, "original source record disappeared");
             state["restart_verified"] = true;
             check(profiles::durableWrite(statePath, state.dump(2)), "write restart evidence");
             return;
@@ -259,10 +259,11 @@ public:
         }
         stage = "construct identity";
         CompoundTag index;
-        index["MsaId"]        = std::string("11111111-1111-3111-8111-111111111111");
-        index["SelfSignedId"] = std::string("fixture-uuid");
-        index["ServerId"]     = defaultKey;
-        stage                 = "serialize identity";
+        index["MsaId"]          = std::string("11111111-1111-3111-8111-111111111111");
+        index["SelfSignedId"]   = std::string("fixture-uuid");
+        index["ServerId"]       = defaultKey;
+        index["UnrelatedField"] = std::string("must-stay");
+        stage                   = "serialize identity";
         write(storage, identityKey, index.toBinaryNbt());
         write(storage, "player_fixture-uuid", index.toBinaryNbt());
         stage        = "discover sources";
@@ -287,30 +288,84 @@ public:
             {"world", world},
             {"name", "fixture"},
             {"source_identity_key", sourceKey},
-            {"source_data_key", sourceKey},
             {"source_hash", profiles::sha256(source)},
             {"expected_hash", ""},
-            {"data_key", "player_server_profiles_" + id},
+            {"data_key", sourceKey},
             {"status", "adding"}
         };
         r["profiles"].push_back(p);
         check(profiles::validateRegistry(r), "ownership reservation invalid");
         auto&       profile = r["profiles"][0];
         std::string error;
-        stage = "copy source";
-        check(profiles::createProfileCopy(storage, profile, dir, error), error);
-        check(profiles::createProfileCopy(storage, profile, dir, error), "interrupted addition is not idempotent");
+        stage            = "repair original source";
+        auto interrupted = profile;
+        check(
+            !profiles::prepareProfile(
+                storage,
+                interrupted,
+                [] {
+                    return false;
+                },
+                error
+            ),
+            "failed commit accepted"
+        );
+        check(read(storage, sourceKey) == source, "failed commit changed original player data");
+        check(interrupted["expected_hash"] == "", "failed commit retained an uncommitted digest");
+        auto changed           = profile;
+        changed["source_hash"] = "unexpected";
+        check(
+            !profiles::prepareProfile(
+                storage,
+                changed,
+                [] {
+                    return true;
+                },
+                error
+            ),
+            "changed source accepted"
+        );
+        check(read(storage, sourceKey) == source, "rejected source was modified");
+        check(
+            profiles::prepareProfile(
+                storage,
+                profile,
+                [] {
+                    return true;
+                },
+                error
+            ),
+            error
+        );
+        check(
+            profiles::prepareProfile(
+                storage,
+                profile,
+                [] {
+                    return true;
+                },
+                error
+            ),
+            "interrupted addition is not idempotent"
+        );
         profile["status"] = "ready";
-        check(read(storage, sourceKey) == source, "copy deleted or changed original");
+        profile.erase("source_hash");
+        profile.erase("expected_hash");
+        check(read(storage, sourceKey) == *profiles::sanitizePlayerNbt(source), "repair changed unrelated bytes");
+        check(!storage.hasKey("player_server_profiles_" + id, Category), "duplicate player record created");
+        check(
+            !std::filesystem::exists(dir / "originals") && !std::filesystem::exists(dir / "switches"),
+            "NBT backup created"
+        );
         auto selected = profile["data_key"].get<std::string>();
         check(read(storage, selected) != source, "NetEase foreign tags not cleaned");
-        stage       = "parse copy";
+        stage       = "parse repaired original";
         auto parsed = CompoundTag::fromBinaryNbt(read(storage, selected));
-        check(bool(parsed), "copy NBT invalid");
-        check(parsed->at("UniqueID").get<Int64Tag>().data == 9999, "actor ID changed during copy");
+        check(bool(parsed), "original NBT invalid");
+        check(parsed->at("UniqueID").get<Int64Tag>().data == 9999, "actor ID changed during repair");
         check(
             !parsed->contains("scriptData") && !parsed->contains("saveLongString"),
-            "foreign fields retained in playable copy"
+            "foreign fields retained in original"
         );
         check(!profiles::mayClaim(r, world, 4000000001u, sourceKey, "900002"), "second owner accepted");
         auto& a        = r["accounts"]["900001"];
@@ -326,10 +381,13 @@ public:
             };
             check(profiles::validateRegistry(r), "switch ownership invalid");
             stage = "switch profile";
-            check(profiles::switchProfile(storage, a, "900001", dir, error), error);
-            check(profiles::switchProfile(storage, a, "900001", dir, error), "committed switch recovery failed");
-            a["active_profile"] = profileId;
-            a["pending"]        = nullptr;
+            check(profiles::switchProfile(storage, a, error), error);
+            check(profiles::switchProfile(storage, a, error), "committed switch recovery failed");
+            a["active_profile"]       = profileId;
+            a["pending"]              = nullptr;
+            auto expectedIndex        = index;
+            expectedIndex["ServerId"] = next;
+            check(read(storage, identityKey) == expectedIndex.toBinaryNbt(), "switch changed other identity fields");
             check(
                 profiles::identityDataKey(storage, identityKey, "11111111-1111-3111-8111-111111111111") == next,
                 "index not switched"
@@ -347,7 +405,11 @@ public:
         switchTo("default", defaultKey);
         switchTo(id, selected);
         a["self_signed_id"] = "fixture-uuid";
-        check(read(storage, sourceKey) == source, "NetEase original overwritten on switch");
+        check(selected == sourceKey && read(storage, sourceKey) == updated, "original NetEase progress not used");
+        check(
+            !std::filesystem::exists(dir / "originals") && !std::filesystem::exists(dir / "switches"),
+            "switch saved NBT backups"
+        );
         auto indexBefore = read(storage, identityKey);
         a["pending"]     = {
             {"id", profiles::makeChallenge()},
@@ -356,13 +418,13 @@ public:
             {"next_key", "player_server_missing"},
             {"status", "applying"}
         };
-        check(!profiles::switchProfile(storage, a, "900001", dir, error), "missing target was accepted");
+        check(!profiles::switchProfile(storage, a, error), "missing target was accepted");
         check(read(storage, identityKey) == indexBefore, "failed switch changed identity");
         a["pending"] = nullptr;
         Json state{
             {"registry", r},
             {"source_key", sourceKey},
-            {"source_hash", profiles::sha256(source)},
+            {"source_hash", profiles::sha256(updated)},
             {"selected_key", selected},
             {"default_hash", profiles::sha256(original)},
             {"updated_hash", profiles::sha256(updated)},

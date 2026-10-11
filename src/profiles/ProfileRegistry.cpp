@@ -4,7 +4,7 @@
 
 namespace profiles {
 Registry emptyRegistry() {
-    return {{"version", 2}, {"accounts", Registry::object()}, {"profiles", Registry::array()}};
+    return {{"version", 3}, {"accounts", Registry::object()}, {"profiles", Registry::array()}};
 }
 
 bool safeProfileId(std::string_view id) {
@@ -32,7 +32,7 @@ bool mayClaim(
         if (p.at("world").get_ref<std::string const&>() != world) {
             continue;
         }
-        if ((p.at("uid") == uid || p.at("source_data_key").get_ref<std::string const&>() == sourceKey)
+        if ((p.at("uid") == uid || p.at("data_key").get_ref<std::string const&>() == sourceKey)
             && p.at("owner").get_ref<std::string const&>() != xuid) {
             return false;
         }
@@ -42,36 +42,26 @@ bool mayClaim(
 
 bool validateRegistry(Registry const& r) {
     try {
-        if (!r.is_object() || r.at("version") != 2 || !r.at("accounts").is_object() || !r.at("profiles").is_array()) {
+        if (!r.is_object() || r.at("version") != 3 || !r.at("accounts").is_object() || !r.at("profiles").is_array()) {
             return false;
         }
-        std::set<std::string>                                   ids, dataKeys, sourceKeys;
+        std::set<std::string>                                   ids, dataKeys;
         std::map<std::pair<std::string, uint32_t>, std::string> uidOwners;
         for (auto const& p : r.at("profiles")) {
-            for (auto field :
-                 {"id",
-                  "owner",
-                  "world",
-                  "name",
-                  "source_identity_key",
-                  "source_data_key",
-                  "source_hash",
-                  "expected_hash",
-                  "data_key",
-                  "status"}) {
+            for (auto field : {"id", "owner", "world", "name", "source_identity_key", "data_key", "status"}) {
                 if (!p.at(field).is_string()) {
                     return false;
                 }
             }
             auto id = p.at("id").get<std::string>(), owner = p.at("owner").get<std::string>(),
                  world = p.at("world").get<std::string>();
-            auto key = p.at("data_key").get<std::string>(), source = p.at("source_data_key").get<std::string>();
+            auto key   = p.at("data_key").get<std::string>();
             auto uid64 = p.at("uid").get<uint64_t>();
             if (!p.at("uid").is_number_unsigned() || !uid64 || uid64 > UINT32_MAX || owner.empty() || world.empty()
-                || !r.at("accounts").contains(owner) || !safeProfileId(id) || key != "player_server_profiles_" + id
-                || !source.starts_with("player_") || source.starts_with("player_server_profiles_")
+                || !r.at("accounts").contains(owner) || !safeProfileId(id) || !key.starts_with("player_")
+                || key.starts_with("player_server_profiles_")
                 || !p.at("source_identity_key").get<std::string>().starts_with("player_") || !ids.insert(id).second
-                || !dataKeys.insert(key).second || !sourceKeys.insert(world + "\n" + source).second) {
+                || !dataKeys.insert(key).second) {
                 return false;
             }
             if (r.at("accounts").at(owner).at("world") != world) {
@@ -83,6 +73,9 @@ bool validateRegistry(Registry const& r) {
             }
             uidOwners[pair] = owner;
             auto status     = p.at("status").get<std::string>();
+            if (status != "ready" && (!p.at("source_hash").is_string() || !p.at("expected_hash").is_string())) {
+                return false;
+            }
             if (status != "adding" && status != "ready" && status != "failed") {
                 return false;
             }
@@ -105,8 +98,7 @@ bool validateRegistry(Registry const& r) {
             }
             if (xuid.empty() || msa.empty() || a.at("identity_key").get<std::string>() != "player_" + msa
                 || !key.starts_with("player_server_") || key.starts_with("player_server_profiles_")
-                || !defaults.insert(a.at("world").get<std::string>() + "\n" + key).second || dataKeys.contains(key)
-                || sourceKeys.contains(a.at("world").get<std::string>() + "\n" + key)) {
+                || !defaults.insert(a.at("world").get<std::string>() + "\n" + key).second || dataKeys.contains(key)) {
                 return false;
             }
             auto active = a.at("active_profile").get<std::string>();

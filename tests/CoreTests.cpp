@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     overflow += char(0);
     require(!sanitizePlayerNbt(overflow), "oversized lengths rejected");
     require(!sanitizePlayerNbt(normal + "garbage"), "trailing bytes rejected");
-    require(sha256("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "backup SHA256");
+    require(sha256("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "SHA256");
     auto registry = emptyRegistry();
     require(validateRegistry(registry), "empty registry");
     auto originalAccount = nlohmann::json{
@@ -108,14 +108,19 @@ int main(int argc, char** argv) {
         {"world", "fixture"},
         {"name", "fixture"},
         {"source_identity_key", "player_fixture-uuid"},
-        {"source_data_key", "player_fixture-uuid"},
         {"source_hash", "hash"},
         {"expected_hash", "hash"},
-        {"data_key", "player_server_profiles_" + id},
+        {"data_key", "player_fixture-uuid"},
         {"status", "ready"}
     };
     registry["profiles"].push_back(profile);
-    require(validateRegistry(registry), "original international slot and NetEase slot coexist");
+    profile.erase("source_hash");
+    profile.erase("expected_hash");
+    registry["profiles"][0] = profile;
+    require(validateRegistry(registry), "ready profile only stores original key and ownership");
+    auto copied                       = registry;
+    copied["profiles"][0]["data_key"] = "player_server_profiles_" + id;
+    require(!validateRegistry(copied), "independent copied slot rejected");
     auto withoutAlias                                 = registry;
     withoutAlias["accounts"]["111"]["self_signed_id"] = "";
     require(validateRegistry(withoutAlias), "authenticated MSA login may omit optional SelfSignedId");
@@ -135,21 +140,20 @@ int main(int argc, char** argv) {
     require(validateRegistry(reloaded) && reloaded == registry, "ownership and switch survive restart");
     reloaded["accounts"]["111"]["pending"]["next_key"] = "player_server_foreign";
     require(!validateRegistry(reloaded), "foreign target rejected on journal reload");
-    auto second                  = originalAccount;
-    second["msa_id"]             = "222";
-    second["self_signed_id"]     = "uuid-b";
-    second["identity_key"]       = "player_222";
-    second["default_key"]        = "player_server_original-b";
-    registry["accounts"]["222"]  = second;
-    auto duplicate               = profile;
-    auto otherId                 = makeChallenge();
-    duplicate["id"]              = otherId;
-    duplicate["data_key"]        = "player_server_profiles_" + otherId;
-    duplicate["owner"]           = "222";
-    duplicate["source_data_key"] = "player_other-role";
+    auto second                 = originalAccount;
+    second["msa_id"]            = "222";
+    second["self_signed_id"]    = "uuid-b";
+    second["identity_key"]      = "player_222";
+    second["default_key"]       = "player_server_original-b";
+    registry["accounts"]["222"] = second;
+    auto duplicate              = profile;
+    auto otherId                = makeChallenge();
+    duplicate["id"]             = otherId;
+    duplicate["data_key"]       = "player_other-role";
+    duplicate["owner"]          = "222";
     registry["profiles"].push_back(duplicate);
     require(!validateRegistry(registry), "duplicate UID ownership rejected on load");
-    require(!safeProfileId("../escape"), "profile ID cannot escape backup directory");
+    require(!safeProfileId("../escape"), "malformed profile ID rejected");
     std::cout << "Core tests passed\n";
     if (argc == 3) {
         auto text = readFile(argv[1]);

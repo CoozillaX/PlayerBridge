@@ -33,29 +33,22 @@ Registry sample() {
     r["accounts"]["111"] = account("111");
     r["accounts"]["222"] = account("222");
     auto id              = makeChallenge();
-    r["profiles"].push_back(
-        {{"id", id},
-         {"owner", "111"},
-         {"world", "fixture"},
-         {"uid", 4000000001u},
-         {"name", "网易角色"},
-         {"source_identity_key", "player_netease"},
-         {"source_data_key", "player_netease"},
-         {"source_hash", "source-hash"},
-         {"expected_hash", "copy-hash"},
-         {"data_key", "player_server_profiles_" + id},
-         {"status", "ready"},
-         {"netease_uuid", "00000000-0000-4000-8000-000000000001"},
-         {"error", ""},
-         {"created_at", 123}}
-    );
+    r["profiles"].push_back({
+        {"id", id},
+        {"owner", "111"},
+        {"world", "fixture"},
+        {"uid", 4000000001u},
+        {"name", "网易角色"},
+        {"source_identity_key", "player_netease"},
+        {"data_key", "player_netease"},
+        {"status", "ready"},
+    });
     r["accounts"]["111"]["pending"] = {
         {"id", makeChallenge()},
         {"profile_id", id},
         {"previous_key", "player_server_original-111"},
-        {"next_key", "player_server_profiles_" + id},
-        {"status", "pending"},
-        {"created_at", 124}
+        {"next_key", "player_netease"},
+        {"status", "pending"}
     };
     return r;
 }
@@ -82,11 +75,10 @@ bool runRegistryTests(std::filesystem::path const& base, std::string& error) {
             RegistryStore duplicate;
             require(!duplicate.open(db, error), "LL database lock excludes another writer");
             auto invalid = original, copy = invalid["profiles"][0];
-            auto id                 = makeChallenge();
-            copy["id"]              = id;
-            copy["owner"]           = "222";
-            copy["data_key"]        = "player_server_profiles_" + id;
-            copy["source_data_key"] = "player_other";
+            auto id          = makeChallenge();
+            copy["id"]       = id;
+            copy["owner"]    = "222";
+            copy["data_key"] = "player_other";
             invalid["profiles"].push_back(copy);
             auto before = readFile(checkpoint);
             require(!store.save(invalid, error), "duplicate UID owner refused");
@@ -99,7 +91,6 @@ bool runRegistryTests(std::filesystem::path const& base, std::string& error) {
             require(!store.save(invalid, error), "foreign active profile refused");
             auto complete                                 = original;
             complete["accounts"]["111"]["active_profile"] = complete["profiles"][0]["id"];
-            complete["accounts"]["111"]["last_switch"]    = complete["accounts"]["111"]["pending"];
             complete["accounts"]["111"]["pending"]        = nullptr;
             require(store.save(complete, error), error);
             auto committedBytes = readFile(checkpoint);

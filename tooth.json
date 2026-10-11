@@ -1,11 +1,11 @@
 {
   "format_version": 3,
   "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
-  "tooth": "github.com/Liliya233/PlayerProfiles",
+  "tooth": "github.com/CoozillaX/NeteasePlayerBridge",
   "version": "0.0.0",
   "info": {
-    "name": "PlayerProfiles",
-    "description": "玩家档案切换与网易角色档案找回",
+    "name": "NeteasePlayerBridge",
+    "description": "国际服账号使用网易角色档案，支持签名验证与角色切换",
     "tags": [
       "platform:levilamina",
       "type:mod"
@@ -22,13 +22,13 @@
         {
           "type": "zip",
           "urls": [
-            "https://{{tooth}}/releases/download/v{{version}}/PlayerProfiles-windows-x64.zip"
+            "https://{{tooth}}/releases/download/v{{version}}/NeteasePlayerBridge-windows-x64.zip"
           ],
           "placements": [
             {
               "type": "dir",
-              "src": "PlayerProfiles/",
-              "dest": "plugins/PlayerProfiles/"
+              "src": "NeteasePlayerBridge/",
+              "dest": "plugins/NeteasePlayerBridge/"
             }
           ]
         }

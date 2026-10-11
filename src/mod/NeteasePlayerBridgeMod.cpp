@@ -1,4 +1,4 @@
-#include "mod/PlayerProfilesMod.h"
+#include "mod/NeteasePlayerBridgeMod.h"
 #include "ll/api/command/CommandHandle.h"
 #include "ll/api/command/CommandRegistrar.h"
 #include "ll/api/event/EventBus.h"
@@ -25,17 +25,12 @@
 #include <algorithm>
 #include <sstream>
 
-namespace player_profiles {
+namespace netease_player_bridge {
 namespace {
 using Json = nlohmann::json;
 
 std::string account(Player const& p) {
     return p.getUuid().asString();
-}
-
-int64_t nowSeconds() {
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
-        .count();
 }
 
 bool authenticatedServer() {
@@ -66,8 +61,8 @@ std::string activeKey(Json const& r, Json const& a, std::string const& xuid) {
 }
 } // namespace
 
-PlayerProfilesMod& PlayerProfilesMod::getInstance() {
-    static PlayerProfilesMod instance;
+NeteasePlayerBridgeMod& NeteasePlayerBridgeMod::getInstance() {
+    static NeteasePlayerBridgeMod instance;
     return instance;
 }
 
@@ -81,7 +76,7 @@ LL_STATIC_HOOK(
     bool                    host,
     bool                    editor
 ) {
-    PlayerProfilesMod::getInstance().beforePlayerLoad(storage, ids.MsaId.get(), ids.SelfSignedId.get());
+    NeteasePlayerBridgeMod::getInstance().beforePlayerLoad(storage, ids.MsaId.get(), ids.SelfSignedId.get());
     return origin(storage, ids, host, editor);
 }
 
@@ -96,10 +91,10 @@ LL_TYPE_INSTANCE_HOOK(
 ) {
     auto xuid = player ? player->getXuid() : std::string{};
     origin(player, skipMessage);
-    PlayerProfilesMod::getInstance().afterPlayerLeft(xuid);
+    NeteasePlayerBridgeMod::getInstance().afterPlayerLeft(xuid);
 }
 
-bool PlayerProfilesMod::load() {
+bool NeteasePlayerBridgeMod::load() {
     try {
         if (!authenticatedServer()) {
             getSelf().getLogger().error("Profile ownership requires online-mode=true");
@@ -143,11 +138,10 @@ bool PlayerProfilesMod::load() {
     }
 }
 
-bool PlayerProfilesMod::saveState() {
+bool NeteasePlayerBridgeMod::saveState() {
     if (!profiles::validateRegistry(mRegistry)) {
-        profiles::durableWrite(mDataDir / "registry-rejected.json", mRegistry.dump(2));
         mStateHealthy = false;
-        getSelf().getLogger().error("Profile registry validation failed; diagnostic saved to registry-rejected.json");
+        getSelf().getLogger().error("Profile registry validation failed; further changes disabled");
         return false;
     }
     std::string error;
@@ -159,7 +153,7 @@ bool PlayerProfilesMod::saveState() {
     return false;
 }
 
-bool PlayerProfilesMod::enable() {
+bool NeteasePlayerBridgeMod::enable() {
     static ll::memory::HookRegistrar<ProfileBeforeLoad> profileHook;
     static ll::memory::HookRegistrar<ProfileAfterLeave> leaveHook;
     mEnabled = true;
@@ -174,7 +168,7 @@ bool PlayerProfilesMod::enable() {
         }
     }
     auto& command = ll::command::CommandRegistrar::getInstance(false)
-                        .getOrCreateCommand("profile", "管理和切换玩家档案", CommandPermissionLevel::Any);
+                        .getOrCreateCommand("profile", "找回和切换网易角色", CommandPermissionLevel::Any);
     command.overload().execute([this](CommandOrigin const& origin, CommandOutput& output) {
         if (!mEnabled) {
             output.error("档案插件已停用");
@@ -221,7 +215,7 @@ bool PlayerProfilesMod::enable() {
     });
 }
 
-bool PlayerProfilesMod::disable() {
+bool NeteasePlayerBridgeMod::disable() {
     mEnabled = false;
     mWorkers.clear();
     for (auto const& p : mListeners) {
@@ -237,7 +231,11 @@ bool PlayerProfilesMod::disable() {
     return true;
 }
 
-bool PlayerProfilesMod::beforePlayerLoad(LevelStorage& storage, std::string const& msa, std::string const& selfSigned) {
+bool NeteasePlayerBridgeMod::beforePlayerLoad(
+    LevelStorage&      storage,
+    std::string const& msa,
+    std::string const& selfSigned
+) {
     if (!mEnabled) {
         return true;
     }
@@ -280,7 +278,7 @@ bool PlayerProfilesMod::beforePlayerLoad(LevelStorage& storage, std::string cons
         mBlocked[xuid] = "账号身份或世界与档案登记不一致，请联系管理员。";
         return false;
     }
-    if (!a["pending"].is_null() && mOfflineJobs.contains(xuid)) {
+    if (mOfflineJobs.contains(xuid)) {
         auto level = ll::service::getLevel();
         if (level) {
             try {
@@ -310,13 +308,13 @@ bool PlayerProfilesMod::beforePlayerLoad(LevelStorage& storage, std::string cons
     return true;
 }
 
-void PlayerProfilesMod::afterPlayerLeft(std::string const& xuid) {
+void NeteasePlayerBridgeMod::afterPlayerLeft(std::string const& xuid) {
     if (mEnabled && mRegistry["accounts"].contains(xuid) && !mRegistry["accounts"][xuid]["pending"].is_null()) {
         mOfflineJobs.insert(xuid);
     }
 }
 
-void PlayerProfilesMod::processOfflineJobs(Level& level, std::string const& requestedOwner) {
+void NeteasePlayerBridgeMod::processOfflineJobs(Level& level, std::string const& requestedOwner) {
     if (!mEnabled || !mStateHealthy || mOfflineJobs.empty()) {
         return;
     }
@@ -359,12 +357,25 @@ void PlayerProfilesMod::processOfflineJobs(Level& level, std::string const& requ
         std::string error;
         bool        ok = false;
         try {
-            ok = profiles::createProfileCopy(storage, p, mDataDir, error);
+            ok = profiles::prepareProfile(
+                storage,
+                p,
+                [this] {
+                    return saveState();
+                },
+                error
+            );
         } catch (...) {
-            error = "找回档案异常，原始记录已保留。";
+            error = "档案修复异常，请联系管理员。";
         }
         p["status"] = ok ? "ready" : "failed";
-        p["error"]  = error;
+        if (ok) {
+            p.erase("source_hash");
+            p.erase("expected_hash");
+            p.erase("error");
+        } else {
+            p["error"] = error;
+        }
         if (!saveState()) {
             mBlocked[xuid] = "档案登记保存失败，请联系管理员。";
             return;
@@ -384,15 +395,13 @@ void PlayerProfilesMod::processOfflineJobs(Level& level, std::string const& requ
         std::string error;
         bool        ok = false;
         try {
-            ok = profiles::switchProfile(storage, a, xuid, mDataDir, error);
+            ok = profiles::switchProfile(storage, a, error);
         } catch (...) {
-            error = "档案切换异常，备份和所有档案均保留。";
+            error = "档案切换异常，请联系管理员。";
         }
         if (ok) {
-            a["active_profile"]             = pending["profile_id"];
-            a["last_switch"]                = pending;
-            a["last_switch"]["finished_at"] = nowSeconds();
-            a["pending"]                    = nullptr;
+            a["active_profile"] = pending["profile_id"];
+            a["pending"]        = nullptr;
             mBlocked.erase(xuid);
         } else {
             pending["status"] = "failed";
@@ -407,7 +416,7 @@ void PlayerProfilesMod::processOfflineJobs(Level& level, std::string const& requ
     }
 }
 
-bool PlayerProfilesMod::ensureAccount(Player& player) {
+bool NeteasePlayerBridgeMod::ensureAccount(Player& player) {
     auto xuid = player.getXuid();
     if (!mStateHealthy) {
         showNotice(player, "档案登记校验或保存失败，插件已暂停操作。请联系管理员检查服务端日志。");
@@ -469,8 +478,7 @@ bool PlayerProfilesMod::ensureAccount(Player& player) {
         }
     }
     for (auto const& p : mRegistry["profiles"]) {
-        if (p["world"].get<std::string>() == world
-            && (p["data_key"].get<std::string>() == *key || p["source_data_key"].get<std::string>() == *key)) {
+        if (p["world"].get<std::string>() == world && p["data_key"].get<std::string>() == *key) {
             showNotice(player, "当前档案已有归属记录，请联系管理员。");
             return false;
         }
@@ -492,8 +500,8 @@ bool PlayerProfilesMod::ensureAccount(Player& player) {
     return true;
 }
 
-void PlayerProfilesMod::showNotice(Player& p, std::string const& text) {
-    ll::form::SimpleForm form("玩家档案", text);
+void NeteasePlayerBridgeMod::showNotice(Player& p, std::string const& text) {
+    ll::form::SimpleForm form("网易角色", text);
     form.appendButton("返回档案菜单", [this](Player& p) {
         if (mEnabled && mStateHealthy) {
             openMenu(p);
@@ -502,7 +510,7 @@ void PlayerProfilesMod::showNotice(Player& p, std::string const& text) {
     form.sendTo(p);
 }
 
-void PlayerProfilesMod::openMenu(Player& p) {
+void NeteasePlayerBridgeMod::openMenu(Player& p) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -511,19 +519,19 @@ void PlayerProfilesMod::openMenu(Player& p) {
     mFormTokens.erase(key);
     mRequests.erase(key);
     ll::form::SimpleForm form(
-        "玩家档案",
+        "网易角色",
         "初始档案和已找回的网易档案均会保留。切换时自动退出，重新加入后加载所选档案。"
     );
     form.appendButton("我的档案 / 切换档案", [this](Player& p) {
         openProfiles(p);
     });
-    form.appendButton("找回网易档案", [this](Player& p) {
+    form.appendButton("找回网易角色", [this](Player& p) {
         openUidForm(p);
     });
     form.sendTo(p);
 }
 
-void PlayerProfilesMod::openUidForm(Player& p) {
+void NeteasePlayerBridgeMod::openUidForm(Player& p) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -534,7 +542,7 @@ void PlayerProfilesMod::openUidForm(Player& p) {
     auto key = account(p);
     mFormTokens.erase(key);
     mRequests.erase(key);
-    ll::form::CustomForm form("找回网易档案");
+    ll::form::CustomForm form("找回网易角色");
     form.appendInput("uid", "网易 UID", "填写数字");
     form.setSubmitButton("下一步");
     form.sendTo(p, [this](Player& p, ll::form::CustomFormResult const& result, auto) {
@@ -559,7 +567,7 @@ void PlayerProfilesMod::openUidForm(Player& p) {
     });
 }
 
-void PlayerProfilesMod::openVerification(Player& p, uint32_t uid) {
+void NeteasePlayerBridgeMod::openVerification(Player& p, uint32_t uid) {
     auto code = profiles::makeVerificationCode(), token = profiles::makeChallenge();
     if (code.empty() || token.empty()) {
         showNotice(p, "验证码生成失败，请重试。");
@@ -586,7 +594,7 @@ void PlayerProfilesMod::openVerification(Player& p, uint32_t uid) {
     });
 }
 
-void PlayerProfilesMod::verify(
+void NeteasePlayerBridgeMod::verify(
     Player&                               p,
     uint32_t                              uid,
     std::string                           code,
@@ -648,7 +656,7 @@ void PlayerProfilesMod::verify(
                         })});
 }
 
-void PlayerProfilesMod::showVerifiedSources(Player& p, uint32_t uid, std::string const& nickname) {
+void NeteasePlayerBridgeMod::showVerifiedSources(Player& p, uint32_t uid, std::string const& nickname) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -668,7 +676,7 @@ void PlayerProfilesMod::showVerifiedSources(Player& p, uint32_t uid, std::string
             mRegistry["profiles"].end(),
             [&](nlohmann::json const& profile) {
                 return profile["world"].get<std::string>() == world
-                    && profile["source_data_key"].get<std::string>() == source.dataKey;
+                    && profile["data_key"].get<std::string>() == source.dataKey;
             }
         );
     });
@@ -707,7 +715,7 @@ void PlayerProfilesMod::showVerifiedSources(Player& p, uint32_t uid, std::string
     });
 }
 
-void PlayerProfilesMod::addProfile(
+void NeteasePlayerBridgeMod::addProfile(
     Player&                       p,
     uint32_t                      uid,
     std::string const&            nickname,
@@ -722,8 +730,7 @@ void PlayerProfilesMod::addProfile(
         return;
     }
     for (auto const& entry : mRegistry["profiles"]) {
-        if (entry["world"].get<std::string>() == world
-            && entry["source_data_key"].get<std::string>() == source.dataKey) {
+        if (entry["world"].get<std::string>() == world && entry["data_key"].get<std::string>() == source.dataKey) {
             showNotice(p, "该档案已有登记，请在列表中查看。");
             return;
         }
@@ -740,7 +747,14 @@ void PlayerProfilesMod::addProfile(
     }
     bool occupied = false;
     level->forEachPlayer([&](Player& other) {
-        if ("player_" + account(other) == source.identityKey) {
+        auto login = mStorageLogins.find(account(other));
+        if (login == mStorageLogins.end()) {
+            return true;
+        }
+        auto const& ids     = login->second;
+        auto        dataKey = profiles::identityDataKey(level->getLevelStorage(), "player_" + ids.msa, ids.msa);
+        if ("player_" + ids.msa == source.identityKey || "player_" + ids.selfSigned == source.identityKey
+            || (dataKey && *dataKey == source.dataKey)) {
             occupied = true;
         }
         return true;
@@ -760,15 +774,12 @@ void PlayerProfilesMod::addProfile(
         {"world", world},
         {"name", nickname + "（UID " + std::to_string(uid) + "）"},
         {"source_identity_key", source.identityKey},
-        {"source_data_key", source.dataKey},
         {"source_hash", source.hash},
-        {"netease_uuid", source.neteaseUuid},
         {"expected_hash", ""},
-        {"data_key", "player_server_profiles_" + id},
-        {"status", "adding"},
-        {"created_at", nowSeconds()}
+        {"data_key", source.dataKey},
+        {"status", "adding"}
     };
-    // Reserve unique ownership durably before creating the independent playable copy.
+    // Reserve ownership before repairing the original world record in place.
     mRegistry["profiles"].push_back(std::move(profile));
     if (!saveState()) {
         showNotice(p, "档案归属登记失败，原始档案未修改。");
@@ -778,12 +789,25 @@ void PlayerProfilesMod::addProfile(
     std::string error;
     bool        ok = false;
     try {
-        ok = profiles::createProfileCopy(level->getLevelStorage(), entry, mDataDir, error);
+        ok = profiles::prepareProfile(
+            level->getLevelStorage(),
+            entry,
+            [this] {
+                return saveState();
+            },
+            error
+        );
     } catch (...) {
-        error = "找回档案异常，所有原始记录均保留。";
+        error = "档案修复异常，请联系管理员。";
     }
     entry["status"] = ok ? "ready" : "failed";
-    entry["error"]  = error;
+    if (ok) {
+        entry.erase("source_hash");
+        entry.erase("expected_hash");
+        entry.erase("error");
+    } else {
+        entry["error"] = error;
+    }
     if (!saveState()) {
         showNotice(p, "档案登记保存失败，请联系管理员。");
         return;
@@ -792,7 +816,7 @@ void PlayerProfilesMod::addProfile(
         showNotice(p, error);
         return;
     }
-    ll::form::SimpleForm form("档案已找回", "已找回网易档案，可在“我的档案”中选择使用。初始档案和网易原始记录均保留。");
+    ll::form::SimpleForm form("角色已找回", "已修复原网易档案，可在“我的档案”中选择使用。初始档案保留。");
     form.appendButton("查看档案列表", [this](Player& p) {
         if (mEnabled) {
             openProfiles(p);
@@ -801,7 +825,7 @@ void PlayerProfilesMod::addProfile(
     form.sendTo(p);
 }
 
-void PlayerProfilesMod::openProfiles(Player& p) {
+void NeteasePlayerBridgeMod::openProfiles(Player& p) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -839,7 +863,7 @@ void PlayerProfilesMod::openProfiles(Player& p) {
     form.sendTo(p);
 }
 
-void PlayerProfilesMod::chooseProfile(Player& p, std::string const& id) {
+void NeteasePlayerBridgeMod::chooseProfile(Player& p, std::string const& id) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -876,7 +900,7 @@ void PlayerProfilesMod::chooseProfile(Player& p, std::string const& id) {
     form.sendTo(p);
 }
 
-void PlayerProfilesMod::queueSwitch(Player& p, std::string const& id) {
+void NeteasePlayerBridgeMod::queueSwitch(Player& p, std::string const& id) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -899,8 +923,7 @@ void PlayerProfilesMod::queueSwitch(Player& p, std::string const& id) {
         {"profile_id", id},
         {"previous_key", activeKey(mRegistry, a, xuid)},
         {"next_key", entry ? entry->at("data_key") : a["default_key"]},
-        {"status", "pending"},
-        {"created_at", nowSeconds()}
+        {"status", "pending"}
     };
     if (!saveState()) {
         showNotice(p, "切换任务保存失败，所有档案均保留。");
@@ -910,6 +933,9 @@ void PlayerProfilesMod::queueSwitch(Player& p, std::string const& id) {
     // the pending switch before reading the selected profile.
     p.disconnect("档案切换已确认。请重新加入服务器，使用所选档案。");
 }
-} // namespace player_profiles
+} // namespace netease_player_bridge
 
-LL_REGISTER_MOD(player_profiles::PlayerProfilesMod, player_profiles::PlayerProfilesMod::getInstance());
+LL_REGISTER_MOD(
+    netease_player_bridge::NeteasePlayerBridgeMod,
+    netease_player_bridge::NeteasePlayerBridgeMod::getInstance()
+);

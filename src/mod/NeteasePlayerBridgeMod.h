@@ -15,12 +15,12 @@ class Player;
 class LevelStorage;
 class Level;
 
-namespace player_profiles {
-class PlayerProfilesMod {
+namespace netease_player_bridge {
+class NeteasePlayerBridgeMod {
 public:
-    static PlayerProfilesMod& getInstance();
+    static NeteasePlayerBridgeMod& getInstance();
 
-    PlayerProfilesMod() : mSelf(*ll::mod::NativeMod::current()) {}
+    NeteasePlayerBridgeMod() : mSelf(*ll::mod::NativeMod::current()) {}
 
     ll::mod::NativeMod& getSelf() const {
         return mSelf;
@@ -79,4 +79,4 @@ private:
     void chooseProfile(Player&, std::string const& profileId);
     void queueSwitch(Player&, std::string const& profileId);
 };
-} // namespace player_profiles
+} // namespace netease_player_bridge
