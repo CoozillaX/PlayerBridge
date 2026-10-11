@@ -1,0 +1,9 @@
+{
+  "api": {
+    "base_url": "https://api.liliya233.uk",
+    "api_key": "",
+    "timeout_seconds": 15
+  },
+  "challenge_ttl_seconds": 600,
+  "verify_cooldown_seconds": 10
+}

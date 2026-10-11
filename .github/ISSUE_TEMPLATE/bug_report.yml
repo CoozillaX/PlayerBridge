@@ -1,0 +1,54 @@
+name: Bug Report
+description: Create a report to help us improve
+title: "[Bug] "
+body:
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: Describe the problem. Do not include API keys, full account databases or private world files.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce the behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem.
+
+  - type: input
+    attributes:
+      label: Platform
+      description: The platform you are using. (e.g. Windows 10)
+
+  - type: input
+    attributes:
+      label: BDS Version
+      description: The version of BDS you are using. (e.g. 1.26.51.1)
+
+  - type: input
+    attributes:
+      label: LeviLamina Version
+      description: The version of LeviLamina you are using. (e.g. 26.51.6)
+
+  - type: input
+    attributes:
+      label: Version
+      description: The version of the mod you are using. (e.g. 1.0.0)
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.

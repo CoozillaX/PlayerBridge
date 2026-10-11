@@ -1,0 +1,41 @@
+name: Build and test
+
+"on":
+  pull_request:
+  push:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: xmake-io/github-action-setup-xmake@v1
+      - uses: actions/cache@v6
+        with:
+          path: ~/AppData/Local/.xmake
+          key: windows-x64-clang22-${{ hashFiles('xmake.lua') }}
+          restore-keys: windows-x64-clang22-
+      - name: Set up LLVM
+        uses: ZhongRuoyu/setup-llvm@v0
+        with:
+          llvm-version: 22
+      - name: Configure
+        run: xmake f -y -p windows -a x64 -m release --vs=2022
+      - name: Build plugin and tests
+        run: xmake build NeteasePlayerMigration core-tests registry-tests
+      - name: Run tests
+        run: |
+          xmake run core-tests
+          xmake run registry-tests
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: NeteasePlayerMigration-windows-x64
+          path: bin/NeteasePlayerMigration/
+          if-no-files-found: error
