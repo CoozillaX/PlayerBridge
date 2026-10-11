@@ -6,20 +6,23 @@
 /.runtime/
 /CMakeLists.txt
 /compile_commands.json
+/.cache/
 
 # Local configuration, player data and credentials
 /config/
 /data/
 .env
 .env.*
-*.sqlite3
-*.sqlite3-*
-*.sqlite3.*
+*.leveldb/
+*.commit.cbor
 
 # Editor and operating system files
-/.idea/
-/.vscode/
-/.vs/
+.idea/
+.vscode/
+.vs/
+*.code-workspace
+*.suo
+*.user
 Thumbs.db
 Desktop.ini
 .DS_Store
@@ -35,3 +38,6 @@ Desktop.ini
 *.tmp
 *.log
 *.dmp
+*.swp
+*.swo
+*~

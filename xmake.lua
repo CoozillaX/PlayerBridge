@@ -7,13 +7,12 @@ add_requires("levilamina 26.51.6", {configs = {target_type = "server"}})
 
 add_requires("levibuildscript")
 add_requires("nlohmann_json v3.12.0")
-add_requires("sqlite3 3.51.0+300", {configs = {shared = false}})
 
 if not has_config("vs_runtime") then
     set_runtimes("MD")
 end
 
-target("NeteasePlayerMigration")
+target("PlayerProfiles")
     add_rules("@levibuildscript/linkrule")
     add_rules("@levibuildscript/modpacker")
     if is_plat("windows") then
@@ -36,7 +35,7 @@ target("NeteasePlayerMigration")
         set_toolchains("clang-cl")
     end
 
-    add_packages("levilamina", "sqlite3")
+    add_packages("levilamina")
     add_syslinks("winhttp", "bcrypt")
     set_kind("shared")
     set_languages("c++20")
@@ -55,10 +54,10 @@ target("core-tests")
     add_includedirs("src")
     add_packages("nlohmann_json")
     add_syslinks("winhttp", "bcrypt")
-    add_files("tests/CoreTests.cpp", "src/migration/Identity.cpp", "src/migration/Files.cpp",
-              "src/migration/NbtSanitizer.cpp", "src/migration/ApiClient.cpp", "src/migration/ProfileRegistry.cpp")
+    add_files("tests/CoreTests.cpp", "src/profiles/Identity.cpp", "src/profiles/Files.cpp",
+              "src/profiles/NbtSanitizer.cpp", "src/profiles/ApiClient.cpp", "src/profiles/ProfileRegistry.cpp")
 
-target("NpmStorageFixture")
+target("PlayerProfilesFixture")
     set_default(false)
     set_kind("shared")
     set_languages("c++20")
@@ -70,18 +69,5 @@ target("NpmStorageFixture")
     add_packages("levilamina")
     add_syslinks("bcrypt")
     add_includedirs("src")
-    add_files("tests/StorageFixture.cpp", "src/mod/MemoryOperators.cpp", "src/migration/Storage.cpp", "src/migration/ProfileRegistry.cpp",
-              "src/migration/Identity.cpp", "src/migration/Files.cpp", "src/migration/NbtSanitizer.cpp")
-
-
-target("registry-tests")
-    set_default(false)
-    set_kind("binary")
-    set_languages("c++20")
-    set_toolchains("clang-cl")
-    add_cxflags("/utf-8", "/EHsc")
-    add_defines("NOMINMAX")
-    add_includedirs("src")
-    add_packages("nlohmann_json", "sqlite3")
-    add_syslinks("bcrypt")
-    add_files("tests/RegistryStoreTests.cpp", "src/migration/RegistryStore.cpp", "src/migration/ProfileRegistry.cpp", "src/migration/Files.cpp", "src/migration/Identity.cpp")
+    add_files("tests/StorageFixture.cpp", "tests/RegistryStoreTests.cpp", "src/profiles/RegistryStore.cpp", "src/mod/MemoryOperators.cpp", "src/profiles/Storage.cpp", "src/profiles/ProfileRegistry.cpp",
+              "src/profiles/Identity.cpp", "src/profiles/Files.cpp", "src/profiles/NbtSanitizer.cpp")

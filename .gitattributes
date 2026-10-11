@@ -10,4 +10,4 @@
 *.lib binary
 *.pdb binary
 *.zip binary
-*.sqlite3 binary
+*.cbor binary

@@ -19,14 +19,14 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: actions/download-artifact@v8.0.2
         with:
-          name: NeteasePlayerMigration-windows-x64
-          path: package/NeteasePlayerMigration
+          name: PlayerProfiles-windows-x64
+          path: package/PlayerProfiles
       - name: Include documentation and create archive
         shell: pwsh
         run: |
           Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, README.md, CHANGELOG.md, config.example.json -Destination package
-          Compress-Archive -Path package/* -DestinationPath NeteasePlayerMigration-windows-x64.zip
+          Compress-Archive -Path package/* -DestinationPath PlayerProfiles-windows-x64.zip
       - uses: softprops/action-gh-release@v3.0.3
         with:
-          files: NeteasePlayerMigration-windows-x64.zip
+          files: PlayerProfiles-windows-x64.zip
           fail_on_unmatched_files: true

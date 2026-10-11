@@ -1,10 +1,10 @@
 {
   "format_version": 3,
   "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
-  "tooth": "github.com/Liliya233/NeteasePlayerMigration",
+  "tooth": "github.com/Liliya233/PlayerProfiles",
   "version": "0.0.0",
   "info": {
-    "name": "NeteasePlayerMigration",
+    "name": "PlayerProfiles",
     "description": "玩家档案切换与网易角色档案找回",
     "tags": [
       "platform:levilamina",
@@ -22,13 +22,13 @@
         {
           "type": "zip",
           "urls": [
-            "https://{{tooth}}/releases/download/v{{version}}/NeteasePlayerMigration-windows-x64.zip"
+            "https://{{tooth}}/releases/download/v{{version}}/PlayerProfiles-windows-x64.zip"
           ],
           "placements": [
             {
               "type": "dir",
-              "src": "NeteasePlayerMigration/",
-              "dest": "plugins/NeteasePlayerMigration/"
+              "src": "PlayerProfiles/",
+              "dest": "plugins/PlayerProfiles/"
             }
           ]
         }

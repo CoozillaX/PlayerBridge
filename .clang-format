@@ -1,7 +1,7 @@
 BasedOnStyle: LLVM
 AccessModifierOffset: -4
 AlignAfterOpenBracket: BlockIndent
-AlignArrayOfStructures: Left
+AlignArrayOfStructures: None
 AlignConsecutiveDeclarations:
   Enabled: true
   AcrossEmptyLines: false
@@ -23,10 +23,11 @@ AlignConsecutiveBitFields:
   Enabled: true
   AcrossEmptyLines: false
   AcrossComments: false
-AllowShortLambdasOnASingleLine: All
+AllowShortLambdasOnASingleLine: Empty
 AllowShortBlocksOnASingleLine: Empty
-AllowShortIfStatementsOnASingleLine: AllIfsAndElse
-AllowShortLoopsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakTemplateDeclarations: 'Yes'
 BinPackArguments: false
@@ -37,6 +38,8 @@ ColumnLimit: 120
 CommentPragmas: '^ IWYU pragma:'
 ConstructorInitializerIndentWidth: 0
 IndentWidth: 4
+InsertBraces: true
+SeparateDefinitionBlocks: Always
 Language: Cpp
 MaxEmptyLinesToKeep: 2
 PackConstructorInitializers: CurrentLine

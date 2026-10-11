@@ -28,14 +28,6 @@ DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
 AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-## SQLite
-
-SQLite 3.51.3 用于插件登记数据库，静态链接到插件中。
-https://sqlite.org/
-
-SQLite 可交付代码属于公有领域，说明见：
-https://sqlite.org/copyright.html
-
 ## nlohmann/json
 
 nlohmann/json 3.12.0：

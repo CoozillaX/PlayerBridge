@@ -26,16 +26,27 @@ jobs:
         uses: ZhongRuoyu/setup-llvm@v0
         with:
           llvm-version: 22
+      - name: Check C++ formatting
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem src,tests -Recurse -File | Where-Object { $_.Extension -in '.cpp','.h' } | ForEach-Object FullName)
+          clang-format --dry-run --Werror @files
+          if ($LASTEXITCODE -ne 0) { throw 'C++ formatting check failed' }
       - name: Configure
         run: xmake f -y -p windows -a x64 -m release --vs=2022
       - name: Build plugin and tests
-        run: xmake build NeteasePlayerMigration core-tests registry-tests
+        run: |
+          xmake build PlayerProfiles
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin build failed' }
+          xmake build core-tests
+          if ($LASTEXITCODE -ne 0) { throw 'Core test build failed' }
+          xmake build PlayerProfilesFixture
+          if ($LASTEXITCODE -ne 0) { throw 'Fixture build failed' }
       - name: Run tests
         run: |
           xmake run core-tests
-          xmake run registry-tests
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: NeteasePlayerMigration-windows-x64
-          path: bin/NeteasePlayerMigration/
+          name: PlayerProfiles-windows-x64
+          path: bin/PlayerProfiles/
           if-no-files-found: error
