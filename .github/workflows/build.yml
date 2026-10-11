@@ -36,17 +36,17 @@ jobs:
         run: xmake f -y -p windows -a x64 -m release --vs=2022
       - name: Build plugin and tests
         run: |
-          xmake build NeteasePlayerBridge
+          xmake build PlayerBridge
           if ($LASTEXITCODE -ne 0) { throw 'Plugin build failed' }
           xmake build core-tests
           if ($LASTEXITCODE -ne 0) { throw 'Core test build failed' }
-          xmake build NeteasePlayerBridgeFixture
+          xmake build PlayerBridgeFixture
           if ($LASTEXITCODE -ne 0) { throw 'Fixture build failed' }
       - name: Run tests
         run: |
           xmake run core-tests
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: NeteasePlayerBridge-windows-x64
-          path: bin/NeteasePlayerBridge/
+          name: PlayerBridge-windows-x64
+          path: bin/PlayerBridge/
           if-no-files-found: error

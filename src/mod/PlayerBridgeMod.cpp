@@ -1,4 +1,4 @@
-#include "mod/NeteasePlayerBridgeMod.h"
+#include "mod/PlayerBridgeMod.h"
 #include "ll/api/command/CommandHandle.h"
 #include "ll/api/command/CommandRegistrar.h"
 #include "ll/api/event/EventBus.h"
@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <sstream>
 
-namespace netease_player_bridge {
+namespace player_bridge {
 namespace {
 using Json = nlohmann::json;
 
@@ -61,8 +61,8 @@ std::string activeKey(Json const& r, Json const& a, std::string const& xuid) {
 }
 } // namespace
 
-NeteasePlayerBridgeMod& NeteasePlayerBridgeMod::getInstance() {
-    static NeteasePlayerBridgeMod instance;
+PlayerBridgeMod& PlayerBridgeMod::getInstance() {
+    static PlayerBridgeMod instance;
     return instance;
 }
 
@@ -76,7 +76,7 @@ LL_STATIC_HOOK(
     bool                    host,
     bool                    editor
 ) {
-    NeteasePlayerBridgeMod::getInstance().beforePlayerLoad(storage, ids.MsaId.get(), ids.SelfSignedId.get());
+    PlayerBridgeMod::getInstance().beforePlayerLoad(storage, ids.MsaId.get(), ids.SelfSignedId.get());
     return origin(storage, ids, host, editor);
 }
 
@@ -91,10 +91,10 @@ LL_TYPE_INSTANCE_HOOK(
 ) {
     auto xuid = player ? player->getXuid() : std::string{};
     origin(player, skipMessage);
-    NeteasePlayerBridgeMod::getInstance().afterPlayerLeft(xuid);
+    PlayerBridgeMod::getInstance().afterPlayerLeft(xuid);
 }
 
-bool NeteasePlayerBridgeMod::load() {
+bool PlayerBridgeMod::load() {
     try {
         if (!authenticatedServer()) {
             getSelf().getLogger().error("Profile ownership requires online-mode=true");
@@ -138,7 +138,7 @@ bool NeteasePlayerBridgeMod::load() {
     }
 }
 
-bool NeteasePlayerBridgeMod::saveState() {
+bool PlayerBridgeMod::saveState() {
     if (!profiles::validateRegistry(mRegistry)) {
         mStateHealthy = false;
         getSelf().getLogger().error("Profile registry validation failed; further changes disabled");
@@ -153,7 +153,7 @@ bool NeteasePlayerBridgeMod::saveState() {
     return false;
 }
 
-bool NeteasePlayerBridgeMod::enable() {
+bool PlayerBridgeMod::enable() {
     static ll::memory::HookRegistrar<ProfileBeforeLoad> profileHook;
     static ll::memory::HookRegistrar<ProfileAfterLeave> leaveHook;
     mEnabled = true;
@@ -215,7 +215,7 @@ bool NeteasePlayerBridgeMod::enable() {
     });
 }
 
-bool NeteasePlayerBridgeMod::disable() {
+bool PlayerBridgeMod::disable() {
     mEnabled = false;
     mWorkers.clear();
     for (auto const& p : mListeners) {
@@ -231,11 +231,7 @@ bool NeteasePlayerBridgeMod::disable() {
     return true;
 }
 
-bool NeteasePlayerBridgeMod::beforePlayerLoad(
-    LevelStorage&      storage,
-    std::string const& msa,
-    std::string const& selfSigned
-) {
+bool PlayerBridgeMod::beforePlayerLoad(LevelStorage& storage, std::string const& msa, std::string const& selfSigned) {
     if (!mEnabled) {
         return true;
     }
@@ -308,13 +304,13 @@ bool NeteasePlayerBridgeMod::beforePlayerLoad(
     return true;
 }
 
-void NeteasePlayerBridgeMod::afterPlayerLeft(std::string const& xuid) {
+void PlayerBridgeMod::afterPlayerLeft(std::string const& xuid) {
     if (mEnabled && mRegistry["accounts"].contains(xuid) && !mRegistry["accounts"][xuid]["pending"].is_null()) {
         mOfflineJobs.insert(xuid);
     }
 }
 
-void NeteasePlayerBridgeMod::processOfflineJobs(Level& level, std::string const& requestedOwner) {
+void PlayerBridgeMod::processOfflineJobs(Level& level, std::string const& requestedOwner) {
     if (!mEnabled || !mStateHealthy || mOfflineJobs.empty()) {
         return;
     }
@@ -416,7 +412,7 @@ void NeteasePlayerBridgeMod::processOfflineJobs(Level& level, std::string const&
     }
 }
 
-bool NeteasePlayerBridgeMod::ensureAccount(Player& player) {
+bool PlayerBridgeMod::ensureAccount(Player& player) {
     auto xuid = player.getXuid();
     if (!mStateHealthy) {
         showNotice(player, "档案登记校验或保存失败，插件已暂停操作。请联系管理员检查服务端日志。");
@@ -500,7 +496,7 @@ bool NeteasePlayerBridgeMod::ensureAccount(Player& player) {
     return true;
 }
 
-void NeteasePlayerBridgeMod::showNotice(Player& p, std::string const& text) {
+void PlayerBridgeMod::showNotice(Player& p, std::string const& text) {
     ll::form::SimpleForm form("网易角色", text);
     form.appendButton("返回档案菜单", [this](Player& p) {
         if (mEnabled && mStateHealthy) {
@@ -510,7 +506,7 @@ void NeteasePlayerBridgeMod::showNotice(Player& p, std::string const& text) {
     form.sendTo(p);
 }
 
-void NeteasePlayerBridgeMod::openMenu(Player& p) {
+void PlayerBridgeMod::openMenu(Player& p) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -531,7 +527,7 @@ void NeteasePlayerBridgeMod::openMenu(Player& p) {
     form.sendTo(p);
 }
 
-void NeteasePlayerBridgeMod::openUidForm(Player& p) {
+void PlayerBridgeMod::openUidForm(Player& p) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -567,7 +563,7 @@ void NeteasePlayerBridgeMod::openUidForm(Player& p) {
     });
 }
 
-void NeteasePlayerBridgeMod::openVerification(Player& p, uint32_t uid) {
+void PlayerBridgeMod::openVerification(Player& p, uint32_t uid) {
     auto code = profiles::makeVerificationCode(), token = profiles::makeChallenge();
     if (code.empty() || token.empty()) {
         showNotice(p, "验证码生成失败，请重试。");
@@ -594,7 +590,7 @@ void NeteasePlayerBridgeMod::openVerification(Player& p, uint32_t uid) {
     });
 }
 
-void NeteasePlayerBridgeMod::verify(
+void PlayerBridgeMod::verify(
     Player&                               p,
     uint32_t                              uid,
     std::string                           code,
@@ -656,7 +652,7 @@ void NeteasePlayerBridgeMod::verify(
                         })});
 }
 
-void NeteasePlayerBridgeMod::showVerifiedSources(Player& p, uint32_t uid, std::string const& nickname) {
+void PlayerBridgeMod::showVerifiedSources(Player& p, uint32_t uid, std::string const& nickname) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -715,7 +711,7 @@ void NeteasePlayerBridgeMod::showVerifiedSources(Player& p, uint32_t uid, std::s
     });
 }
 
-void NeteasePlayerBridgeMod::addProfile(
+void PlayerBridgeMod::addProfile(
     Player&                       p,
     uint32_t                      uid,
     std::string const&            nickname,
@@ -825,7 +821,7 @@ void NeteasePlayerBridgeMod::addProfile(
     form.sendTo(p);
 }
 
-void NeteasePlayerBridgeMod::openProfiles(Player& p) {
+void PlayerBridgeMod::openProfiles(Player& p) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -863,7 +859,7 @@ void NeteasePlayerBridgeMod::openProfiles(Player& p) {
     form.sendTo(p);
 }
 
-void NeteasePlayerBridgeMod::chooseProfile(Player& p, std::string const& id) {
+void PlayerBridgeMod::chooseProfile(Player& p, std::string const& id) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -900,7 +896,7 @@ void NeteasePlayerBridgeMod::chooseProfile(Player& p, std::string const& id) {
     form.sendTo(p);
 }
 
-void NeteasePlayerBridgeMod::queueSwitch(Player& p, std::string const& id) {
+void PlayerBridgeMod::queueSwitch(Player& p, std::string const& id) {
     if (!ensureAccount(p)) {
         return;
     }
@@ -933,9 +929,6 @@ void NeteasePlayerBridgeMod::queueSwitch(Player& p, std::string const& id) {
     // the pending switch before reading the selected profile.
     p.disconnect("档案切换已确认。请重新加入服务器，使用所选档案。");
 }
-} // namespace netease_player_bridge
+} // namespace player_bridge
 
-LL_REGISTER_MOD(
-    netease_player_bridge::NeteasePlayerBridgeMod,
-    netease_player_bridge::NeteasePlayerBridgeMod::getInstance()
-);
+LL_REGISTER_MOD(player_bridge::PlayerBridgeMod, player_bridge::PlayerBridgeMod::getInstance());

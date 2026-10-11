@@ -62,7 +62,7 @@ ProfileResult fetchProfile(ApiConfig const& config, uint32_t uid) {
         || parts.dwExtraInfoLength != 0) {
         return fail("API 地址必须使用 HTTPS，且不包含查询参数");
     }
-    Handle session(WinHttpOpen(L"NeteasePlayerBridge/0.1", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0));
+    Handle session(WinHttpOpen(L"PlayerBridge/0.1", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0));
     if (!session.value) {
         return fail("无法创建 HTTP 会话");
     }

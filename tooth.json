@@ -1,10 +1,10 @@
 {
   "format_version": 3,
   "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
-  "tooth": "github.com/CoozillaX/NeteasePlayerBridge",
+  "tooth": "github.com/CoozillaX/PlayerBridge",
   "version": "0.0.0",
   "info": {
-    "name": "NeteasePlayerBridge",
+    "name": "PlayerBridge",
     "description": "国际服账号使用网易角色档案，支持签名验证与角色切换",
     "tags": [
       "platform:levilamina",
@@ -22,13 +22,13 @@
         {
           "type": "zip",
           "urls": [
-            "https://{{tooth}}/releases/download/v{{version}}/NeteasePlayerBridge-windows-x64.zip"
+            "https://{{tooth}}/releases/download/v{{version}}/PlayerBridge-windows-x64.zip"
           ],
           "placements": [
             {
               "type": "dir",
-              "src": "NeteasePlayerBridge/",
-              "dest": "plugins/NeteasePlayerBridge/"
+              "src": "PlayerBridge/",
+              "dest": "plugins/PlayerBridge/"
             }
           ]
         }

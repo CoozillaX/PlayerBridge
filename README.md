@@ -1,4 +1,4 @@
-# 网易角色接入 · NeteasePlayerBridge
+# 网易角色接入 · PlayerBridge
 
 面向 Windows x64、BDS 1.26.51.1 与 LeviLamina 26.51.6 的服务端插件。国际服玩家验证网易签名后，可将导出世界中的网易角色档案找回到自己的列表，并在档案之间切换。
 
@@ -18,7 +18,7 @@
 
 ## 安装和配置
 
-将 `bin/NeteasePlayerBridge/` 放入服务端 `plugins/`。配置路径为 `plugins/NeteasePlayerBridge/config/config.json`，参考 [config.example.json](config.example.json)。API 地址、API Key 和超时均通过配置读取，凭据不写入源码。服务端必须开启 `online-mode=true`。
+将 `bin/PlayerBridge/` 放入服务端 `plugins/`。配置路径为 `plugins/PlayerBridge/config/config.json`，参考 [config.example.json](config.example.json)。API 地址、API Key 和超时均通过配置读取，凭据不写入源码。服务端必须开启 `online-mode=true`。
 
 首次安装或替换 DLL 后需要重启服务器。玩家日常切换档案只需重新加入，服务器无需重启。插件不执行启动时的全档案扫描，也不会重新启用旧配置中的 `scan_on_start` 或 `apply_on_start`。
 
@@ -26,7 +26,7 @@
 
 ## 持久数据
 
-`plugins/NeteasePlayerBridge/data/` 中保存：
+`plugins/PlayerBridge/data/` 中保存：
 
 - `profiles.leveldb/`：由 LL `ll::data::KeyValueDB` 管理的档案登记数据库。完整登记以 CBOR 二进制编码，通过 `WriteBatch` 原子提交。
 - `profiles.commit.cbor`：带版本、提交代数与 SHA-256 的二进制提交检查点。LL 数据库接口没有同步刷盘开关，因此先刷盘记录提交决定，启动时重放未完成的数据库写入。
@@ -37,11 +37,11 @@
 
 不要单独删除数据库目录或提交检查点。备份世界时应同时备份插件的完整 `data/`。切换失败时保留所有数据并阻止该账号继续登录；世界索引已写入但登记提交尚未完成的切换，会在下一次档案读取前识别并完成。
 
-本项目用于新存档与全新登记，不导入旧版插件数据。安装时使用独立的 `NeteasePlayerBridge` 目录，并停用旧插件，避免重复注册 `/profile`。
+本项目用于新存档与全新登记，不导入旧版插件数据。安装时使用独立的 `PlayerBridge` 目录，并停用旧插件，避免重复注册 `/profile`。
 
 ## LeviLamina 接口与目录约定
 
-配置通过 `NativeMod::getConfigDir()` 定位，持久登记通过 `getDataDir()` 定位，不在源码中拼接插件安装目录。当前服务器安装下分别对应 `plugins/NeteasePlayerBridge/config/` 和 `plugins/NeteasePlayerBridge/data/`。
+配置通过 `NativeMod::getConfigDir()` 定位，持久登记通过 `getDataDir()` 定位，不在源码中拼接插件安装目录。当前服务器安装下分别对应 `plugins/PlayerBridge/config/` 和 `plugins/PlayerBridge/data/`。
 
 档案登记使用 LL 的 `KeyValueDB`。写入前校验 UID 独占归属、身份别名、当前档案及切换任务的关联；数据库锁排除其他写入实例，登记只在服务器线程修改。世界档案通过 `LevelStorage` 的读取、批量写入和刷盘接口操作。当前实现按单个世界使用，更换世界时需同时处理插件数据。
 
@@ -59,13 +59,13 @@ C++ 源码与测试使用仓库中的 `.clang-format`，四空格缩进、最多
 
 ```powershell
 xmake f -y -p windows -a x64 -m release --vs=2022
-xmake build NeteasePlayerBridge
+xmake build PlayerBridge
 xmake build core-tests
 xmake run core-tests
-xmake build NeteasePlayerBridgeFixture
+xmake build PlayerBridgeFixture
 ```
 
-基础测试覆盖 UID 编解码、验证码格式、网易 NBT 清理、归属独占和非法切换。`NeteasePlayerBridgeFixture` 是单独的测试 DLL，在名为 `profiles-test` 的空测试世界中执行 `profiletest`，验证原档案就地修复、不生成副本或 NBT 备份、不改其他字段、提交失败拒绝修复、切换往返、独立进度、幂等恢复及重启持久性；`profiledbtest` 使用真实 LL 数据库验证独占归属、身份冲突、非法写入拒绝、数据库锁、重新打开和中断提交恢复。测试 DLL 不随正式插件安装，拒绝在其他世界或有玩家在线时执行。
+基础测试覆盖 UID 编解码、验证码格式、网易 NBT 清理、归属独占和非法切换。`PlayerBridgeFixture` 是单独的测试 DLL，在名为 `profiles-test` 的空测试世界中执行 `profiletest`，验证原档案就地修复、不生成副本或 NBT 备份、不改其他字段、提交失败拒绝修复、切换往返、独立进度、幂等恢复及重启持久性；`profiledbtest` 使用真实 LL 数据库验证独占归属、身份冲突、非法写入拒绝、数据库锁、重新打开和中断提交恢复。测试 DLL 不随正式插件安装，拒绝在其他世界或有玩家在线时执行。
 
 服务端测试不能代替真实 MC 客户端验证；表单显示、实际断线重连和游戏内背包恢复仍需客户端操作确认。网易脚本功能本身不在修复范围内。如果世界中的两份角色原本已具有相同 UniqueID，单纯切换索引不会消除已有的计分板身份冲突；插件不自行分配 UniqueID 或修改计分板。
 
@@ -79,8 +79,8 @@ Skip32 算法来源及许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 这是独立插件项目，初始工程结构来自 LeviLamina 模组模板；保留其 CC0 许可证和第三方声明，提交历史从本项目开始。
 
-GitHub Actions 构建服务端插件与测试 DLL，检查 C++ 格式并运行 `core-tests`。真实数据库和世界存储测试需在独立 BDS 测试服运行。发布版本使用 `v<版本号>` Git 标签生成包版本；未打标签的开发构建可能显示为 `0.0.0`。发布附件名为 `NeteasePlayerBridge-windows-x64.zip`，只包含插件产物、示例配置和文档，不包含 API 凭据、数据库或世界存档。
+GitHub Actions 构建服务端插件与测试 DLL，检查 C++ 格式并运行 `core-tests`。真实数据库和世界存储测试需在独立 BDS 测试服运行。发布版本使用 `v<版本号>` Git 标签生成包版本；未打标签的开发构建可能显示为 `0.0.0`。发布附件名为 `PlayerBridge-windows-x64.zip`，只包含插件产物、示例配置和文档，不包含 API 凭据、数据库或世界存档。
 
-`tooth.json` 按 `CoozillaX/NeteasePlayerBridge` 配置发布地址。仓库尚未连接远程时，此配置不会创建或发布 GitHub 仓库。
+`tooth.json` 按 `CoozillaX/PlayerBridge` 配置发布地址。仓库尚未连接远程时，此配置不会创建或发布 GitHub 仓库。
 
 许可证与依赖来源见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

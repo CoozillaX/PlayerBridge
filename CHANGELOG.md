@@ -11,5 +11,5 @@
 - 切换仅修改国际服身份索引及必要别名的 ServerId，不修改角色 UniqueID 或计分板。
 - 不保存完整档案备份或切换历史；修复摘要仅在未完成修复期间保存。
 - 提供修复提交失败、重复执行、索引往返切换与重启持久性测试。
-- 发布地址更新为 CoozillaX/NeteasePlayerBridge。
-- 项目命名为 NeteasePlayerBridge，游戏入口使用 `/profile`。
+- 发布地址更新为 CoozillaX/PlayerBridge。
+- 项目命名为 PlayerBridge，游戏入口使用 `/profile`。

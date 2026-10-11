@@ -12,7 +12,7 @@ if not has_config("vs_runtime") then
     set_runtimes("MD")
 end
 
-target("NeteasePlayerBridge")
+target("PlayerBridge")
     add_rules("@levibuildscript/linkrule")
     add_rules("@levibuildscript/modpacker")
     if is_plat("windows") then
@@ -57,7 +57,7 @@ target("core-tests")
     add_files("tests/CoreTests.cpp", "src/profiles/Identity.cpp", "src/profiles/Files.cpp",
               "src/profiles/NbtSanitizer.cpp", "src/profiles/ApiClient.cpp", "src/profiles/ProfileRegistry.cpp")
 
-target("NeteasePlayerBridgeFixture")
+target("PlayerBridgeFixture")
     set_default(false)
     set_kind("shared")
     set_languages("c++20")
