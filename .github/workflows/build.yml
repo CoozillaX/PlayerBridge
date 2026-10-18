@@ -45,6 +45,19 @@ jobs:
       - name: Run tests
         run: |
           xmake run core-tests
+      - name: Validate plugin package
+        shell: pwsh
+        run: |
+          $raw = Get-Content -Raw -Encoding utf8 bin/PlayerBridge/manifest.json
+          if ($raw -match '\$\{[^}]+\}') { throw 'Packaged manifest contains unresolved placeholders' }
+          $manifest = $raw | ConvertFrom-Json
+          if ($manifest.platform -ne 'server') { throw 'Packaged plugin must target the dedicated server' }
+          if ($manifest.name -ne 'PlayerBridge' -or $manifest.entry -ne 'PlayerBridge.dll') {
+            throw 'Packaged plugin name or entry is incorrect'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path bin/PlayerBridge $manifest.entry) -PathType Leaf)) {
+            throw 'Packaged plugin entry does not exist'
+          }
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: PlayerBridge-windows-x64
