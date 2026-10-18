@@ -1,8 +1,16 @@
 name: Package release
 
 "on":
+  push:
+    tags: ["v*"]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to publish, for example v0.1.1
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -10,13 +18,19 @@ permissions:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
   package:
     needs: build
     runs-on: windows-latest
     permissions:
       contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/download-artifact@v8.0.2
         with:
           name: PlayerBridge-windows-x64
@@ -24,9 +38,19 @@ jobs:
       - name: Include documentation and create archive
         shell: pwsh
         run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+            throw 'Release must use a version tag such as v0.1.1'
+          }
+          $manifest = Get-Content -Raw -Encoding utf8 package/PlayerBridge/manifest.json | ConvertFrom-Json
+          if ($manifest.version -ne $env:RELEASE_TAG.Substring(1) -or $manifest.platform -ne 'server') {
+            throw 'Packaged manifest does not match the release version or platform'
+          }
           Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, README.md, CHANGELOG.md, config.example.json -Destination package
           Compress-Archive -Path package/* -DestinationPath PlayerBridge-windows-x64.zip
       - uses: softprops/action-gh-release@v3.0.3
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
           files: PlayerBridge-windows-x64.zip
           fail_on_unmatched_files: true
+          generate_release_notes: true

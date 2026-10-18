@@ -3,8 +3,14 @@ name: Build and test
 "on":
   pull_request:
   push:
+    branches: ["**"]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      ref:
+        description: Commit or tag to build
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -16,6 +22,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - uses: xmake-io/github-action-setup-xmake@v1
       - uses: actions/cache@v6
         with:
